@@ -18,7 +18,7 @@ from aiogram.utils.markdown import escape_md
 from psycopg.rows import dict_row
 
 from constants import HELLO_MESSAGE, LEARNING_SOURCES, FEEDBACK, STATISTICS, transcribe_az_dict, ADM_HELP, Keyboard
-from secrets import TELEGRAM_API_TOKEN, POSTGRE_USER, POSTGRE_PWD
+from secret_constants import TELEGRAM_API_TOKEN, POSTGRE_USER, POSTGRE_PWD, POSTGRE_DB_NAME
 
 path = os.path.dirname(os.path.abspath(__file__))
 conn = psycopg.connect(dbname=POSTGRE_DB_NAME, user=POSTGRE_USER, password=POSTGRE_PWD, host='localhost')
@@ -139,7 +139,7 @@ async def adm_statistics(message: types.Message):
         WHERE NOW() - last_send <= interval '24 hours'
         GROUP BY username, tg_id
         ORDER BY words_learned DESC
-        LIMIT 20'''
+        LIMIT 40'''
     ).fetchall()
     for top_man in top:
         stat += f'@{top_man["user"]} - {top_man["words_learned"]} слов (Уровень {top_man["max_level"]})\n'
@@ -149,7 +149,7 @@ async def adm_statistics(message: types.Message):
             SELECT (CASE WHEN (username IS NULL OR username = '') THEN tg_id::name ELSE username END) as user, first_name, registration_date, is_blocked
             FROM users
             ORDER BY registration_date DESC
-            LIMIT 10
+            LIMIT 30
         '''
     ).fetchall()
     for registered in fresh_registered:
