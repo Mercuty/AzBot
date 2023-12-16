@@ -14,7 +14,7 @@ from safe_schedule import SafeScheduler
 import time
 from datetime import datetime, time, timedelta
 import psycopg
-from aiogram.utils.markdown import escape_md
+from aiogram.utils.markdown import escape_md, quote_html
 from psycopg.rows import dict_row
 
 from constants import HELLO_MESSAGE, LEARNING_SOURCES, FEEDBACK, STATISTICS, transcribe_az_dict, ADM_HELP, Keyboard
@@ -100,6 +100,21 @@ async def send_to_all(message: types.Message):
             )
 
 
+@dp.message_handler(commands=['test_adm_message'])
+async def send_to_all(message: types.Message):
+    logging.info(f'Got admin broadcast message {message.md_text}')
+    c.execute('SELECT DISTINCT tg_id FROM users WHERE is_blocked = false')
+    ids = ADMINS
+    tg_id = message.from_user.id
+    if tg_id in ADMINS:
+        broadcast_message = message.md_text.replace('/test\\_adm\\_message ', '')
+        for id in ids:
+            await bot.send_message(
+                chat_id=id,
+                text=broadcast_message,
+            )
+
+
 @dp.message_handler(Text('Ещё слово'))
 async def more_words(message: types.Message):
     await words_now(message)
@@ -154,7 +169,8 @@ async def adm_statistics(message: types.Message):
     ).fetchall()
     for registered in fresh_registered:
         stat += f'@{registered["user"]} {registered["first_name"]} - {registered["registration_date"]}. Блок: {registered["is_blocked"]}.\n'
-    await message.answer(text=stat, parse_mode=types.ParseMode.HTML)
+    logging.info(f'Adm message: {quote_html(stat)}')
+    await message.answer(text=quote_html(stat), parse_mode=types.ParseMode.HTML)
 
 
 @dp.message_handler(Text(Keyboard.ADM_HELP.value))
