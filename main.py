@@ -153,11 +153,12 @@ async def adm_statistics(message: types.Message):
         JOIN vocabulary ON user_vocabulary.vocabulary_id = vocabulary.id
         WHERE NOW() - last_send <= interval '24 hours'
         GROUP BY username, tg_id
-        ORDER BY words_learned DESC
-        LIMIT 40'''
+        ORDER BY words_learned DESC'''
     ).fetchall()
-    for top_man in top:
+    top_manual = [user for user in top if user["words_learned"] > 1]
+    for top_man in top_manual[:40]:
         stat += f'@{top_man["user"]} - {top_man["words_learned"]} слов (Уровень {top_man["max_level"]})\n'
+    stat += f'\nАктивных за 24 часа: {len(top_manual)}\n\n'
     stat += '\nНедавно зарегистрировавшиеся:\n'
     fresh_registered = c.execute(
         '''
@@ -169,6 +170,22 @@ async def adm_statistics(message: types.Message):
     ).fetchall()
     for registered in fresh_registered:
         stat += f'@{registered["user"]} {registered["first_name"]} - {registered["registration_date"]}. Блок: {registered["is_blocked"]}.\n'
+    today_registered = c.execute(
+        '''
+            SELECT COUNT(*)
+            FROM users
+            WHERE NOW() - registration_date <= interval '24 hours'
+        '''
+    ).fetchall()
+    yesterday_registered = c.execute(
+        '''
+            SELECT COUNT(*)
+            FROM users
+            WHERE NOW() - registration_date <= interval '48 hours' AND NOW() - registration_date > interval '24 hours'
+        '''
+    ).fetchall()
+    stat += f'\nЗарегистрировалось за сегодня: {today_registered[0]["count"]}'
+    stat += f'\nЗарегистрировалось за вчера: {yesterday_registered[0]["count"]}\n'
     logging.info(f'Adm message: {quote_html(stat)}')
     await message.answer(text=quote_html(stat), parse_mode=types.ParseMode.HTML)
 
@@ -273,10 +290,10 @@ async def send_messages(id: int = None, fast: bool = False):
                     az_ru_quiz.append(word)
             logging.info(f'User {user_id} ru_az:{len(ru_az_quiz)}, az_ru:{len(az_ru_quiz)}, plain:{len(word_translation)}')
             logging.info(f'User {user_id} learned {len(get_asked_words(words))} words today')
-            if len(get_asked_words(words)) >= 50:
+            if len(get_asked_words(words)) >= 70:
                 await bot.send_message(
                     chat_id=user_id,
-                    text=md.escape_md(f'''За последние 6 часов было показано 50 слов! Отдохните и возвращайтесь позже 🙃'''),
+                    text=md.escape_md(f'''За последние 6 часов было показано 70 слов! Отдохните и возвращайтесь позже 🙃'''),
                     reply_markup=default_menu(user_id)
                 )
                 continue
