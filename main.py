@@ -241,13 +241,14 @@ async def more_words(callback_query: types.CallbackQuery):
         parsed = re.search(pattern, callback_query.data)
         user_id = parsed.group(2)
         word_id = parsed.group(3)
+        dt = datetime.now()
         c.execute(
             '''
             UPDATE user_vocabulary
-            SET num_right_guesses = 10, poll_id = NULL, correct_answer_id = -1
+            SET num_right_guesses = 10, poll_id = NULL, correct_answer_id = -1, last_send = %s
             WHERE user_id = %s AND vocabulary_id = %s
             ''',
-            (user_id, word_id)
+            (dt, user_id, word_id)
         )
         conn.commit()
         await callback_query.message.answer('Слово помечено выученным')
@@ -261,7 +262,7 @@ async def more_words(callback_query: types.CallbackQuery):
 
 # Define a function to send the messages
 @dp.message_handler()
-async def send_messages(id: int = None, fast: bool = False):
+async def send_messages(id: int = None, fast: bool = False, silent: bool = False):
     c.execute('SELECT DISTINCT tg_id FROM users WHERE is_blocked = false')
     USER_IDS_TO_SEND_MESSAGES_TO = [row["tg_id"] for row in c.fetchall()]
     ids_to_send = [id] if id else USER_IDS_TO_SEND_MESSAGES_TO
@@ -291,11 +292,12 @@ async def send_messages(id: int = None, fast: bool = False):
             logging.info(f'User {user_id} ru_az:{len(ru_az_quiz)}, az_ru:{len(az_ru_quiz)}, plain:{len(word_translation)}')
             logging.info(f'User {user_id} learned {len(get_asked_words(words))} words today')
             if len(get_asked_words(words)) >= 70:
-                await bot.send_message(
-                    chat_id=user_id,
-                    text=md.escape_md(f'''За последние 6 часов было показано 70 слов! Отдохните и возвращайтесь позже 🙃'''),
-                    reply_markup=default_menu(user_id)
-                )
+                if not silent:
+                    await bot.send_message(
+                        chat_id=user_id,
+                        text=md.escape_md(f'''За последние 6 часов было показано 70 слов! Отдохните и возвращайтесь позже 🙃'''),
+                        reply_markup=default_menu(user_id)
+                    )
                 continue
             if len(ru_az_quiz) > 10:
                 ru_az_quiz = get_unasked_words(ru_az_quiz)
@@ -317,11 +319,12 @@ async def send_messages(id: int = None, fast: bool = False):
             if len(new_words) >= 5:
                 await new_words_message(user_id, user_in_voc_id, new_words)
             else:
-                await bot.send_message(
-                    chat_id=user_id,
-                    text=md.escape_md(f'''На текущий момент это все слова, которые есть в боте, хорошая работа! Скоро будут новые наборы :)'''),
-                    reply_markup=default_menu(user_id)
-                )
+                if not silent:
+                    await bot.send_message(
+                        chat_id=user_id,
+                        text=md.escape_md(f'''На текущий момент это все слова, которые есть в боте, хорошая работа! Скоро будут новые наборы :)'''),
+                        reply_markup=default_menu(user_id)
+                    )
                 continue
 
         except exceptions.BotBlocked:
@@ -386,7 +389,7 @@ async def scheduler():
     schedule = SafeScheduler()
     schedule.every().day.at("05:30").do(send_statistics_by_ids, ids=[])
     for time in SCHEDULE:
-        schedule.every().day.at(time).do(send_messages)
+        schedule.every().day.at(time).do(send_messages, silent=True)
     while True:
         await schedule.run_pending()
         await asyncio.sleep(1)
